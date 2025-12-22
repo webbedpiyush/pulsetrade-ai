@@ -1,0 +1,34 @@
+// Prisma schema for PulseTrade AI
+// Portfolio and stock watchlist management
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Portfolio {
+  id        String   @id @default(cuid())
+  userId    String   // Clerk user ID
+  name      String
+  stocks    Stock[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Stock {
+  id           String    @id @default(cuid())
+  symbol       String    // e.g., "NSE:RELIANCE"
+  alertEnabled Boolean   @default(true)
+  portfolio    Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  portfolioId  String
+  createdAt    DateTime  @default(now())
+
+  @@unique([portfolioId, symbol])
+  @@index([symbol])
+}

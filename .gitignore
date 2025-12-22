@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+.next/
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+backend/.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+.pytest_cache/
+coverage/
+
+# Audio outputs
+/tmp/pulsetrade_audio/
+
+
+# Additional frontend env files
+frontend/.env
+frontend/.env.local
+frontend/.env*.local
+# Database files
+*.sqlite
+*.db
+prisma/*.db
+# Deployment
+.vercel/
+# Package lock files (optional, some prefer to keep these)
+# package-lock.json
+# yarn.lock
