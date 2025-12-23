@@ -66,13 +66,13 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
       ticks: { ...state.ticks, [tick.symbol]: tick },
     })),
 
-  // Price history (last 100 points per symbol)
+  // Price history (last 1000 points per symbol ~83 min at 5s intervals)
   priceHistory: {},
   addPricePoint: (symbol, price) =>
     set((state) => {
       const history = state.priceHistory[symbol] || [];
       const newPoint = { time: Date.now() / 1000, value: price };
-      const updated = [...history, newPoint].slice(-100);
+      const updated = [...history, newPoint].slice(-1000);
       return {
         priceHistory: { ...state.priceHistory, [symbol]: updated },
       };
