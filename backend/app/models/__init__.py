@@ -1,1 +1,1 @@
-"""Data models for PulseTrade AI."""
+"""Models module - Pydantic schemas."""

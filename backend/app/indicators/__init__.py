@@ -1,0 +1,1 @@
+"""Indicators module - Technical analysis."""
