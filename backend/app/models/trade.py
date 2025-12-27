@@ -4,6 +4,7 @@ Trade event models for crypto streaming.
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+import orjson
 
 
 class TradeEvent(BaseModel):
@@ -34,9 +35,20 @@ class TradeEvent(BaseModel):
             time=data['T']
         )
     
-    def to_kafka_value(self) -> str:
-        """Serialize for Kafka."""
-        return self.model_dump_json()
+    def to_kafka_bytes(self) -> bytes:
+        """Serialize for Kafka (faster than JSON)."""
+        return orjson.dumps({
+            "symbol": self.symbol,
+            "price": self.price,
+            "volume": self.volume,
+            "time": self.time
+        })
+    
+    @classmethod
+    def from_kafka_bytes(cls, data: bytes) -> "TradeEvent":
+        """Deserialize from Kafka."""
+        parsed = orjson.loads(data)
+        return cls(**parsed)
     
     @property
     def timestamp(self) -> datetime:
@@ -55,6 +67,11 @@ class AlertEvent(BaseModel):
     message: str
     time: int
     
-    def to_kafka_value(self) -> str:
+    def to_kafka_bytes(self) -> bytes:
         """Serialize for Kafka."""
-        return self.model_dump_json()
+        return orjson.dumps(self.model_dump())
+    
+    @classmethod
+    def from_kafka_bytes(cls, data: bytes) -> "AlertEvent":
+        """Deserialize from Kafka."""
+        return cls(**orjson.loads(data))

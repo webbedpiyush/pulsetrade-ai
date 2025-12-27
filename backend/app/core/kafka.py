@@ -29,7 +29,7 @@ def get_producer() -> Producer:
     config = get_kafka_config()
     config.update({
         'client.id': 'pulsetrade-ingestor',
-        'acks': 'all',  # Wait for all replicas
+        'acks': 'all',
     })
     return Producer(config)
 
@@ -47,7 +47,7 @@ def get_consumer(group_id: str = 'ai-processor-group') -> Consumer:
     config = get_kafka_config()
     config.update({
         'group.id': group_id,
-        'auto.offset.reset': 'latest',  # Only care about new messages
+        'auto.offset.reset': 'latest',
         'enable.auto.commit': True,
     })
     return Consumer(config)
@@ -55,3 +55,4 @@ def get_consumer(group_id: str = 'ai-processor-group') -> Consumer:
 
 # Topic names
 TOPIC_CRYPTO_TRADES = 'crypto-trades'
+TOPIC_ALERTS = 'crypto-alerts'
