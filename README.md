@@ -1,4 +1,4 @@
-# 🚀 PulseTrade AI: Crypto Edition
+# PulseTrade AI: Crypto Edition
 
 **Real-time Crypto Anomaly Detector with AI Voice Commentary**
 
