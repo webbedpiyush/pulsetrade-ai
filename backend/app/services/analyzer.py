@@ -15,11 +15,12 @@ from app.core.config import get_settings
 from app.models.trade import TradeEvent, AlertEvent
 from app.indicators.rsi import RSICalculator
 from app.indicators.volume import VolumeSpikeDetector
+from app.indicators.price import PriceChangeDetector, LevelCrossDetector
 
 
-# Trigger thresholds
-RSI_OVERBOUGHT = 80
-RSI_OVERSOLD = 20
+# Trigger thresholds (adjusted for 60-second RSI for professional demo look)
+RSI_OVERBOUGHT = 70  # More achievable than 80 with 60s period
+RSI_OVERSOLD = 30    # More achievable than 20 with 60s period
 VOLUME_SPIKE_THRESHOLD = 5.0
 
 # Cooldown (5 minutes per symbol per trigger type)
@@ -33,8 +34,16 @@ class MarketAnalyzer:
     
     def __init__(self):
         self.consumer = get_consumer()
-        self.rsi = RSICalculator(period=14)
-        self.volume = VolumeSpikeDetector(window_size=100)
+        self.rsi = RSICalculator(period=60)  # 1-Minute RSI (60 1-second candles)
+        self.volume = VolumeSpikeDetector(window_size=30)  # 30-second rolling window
+        
+        # New Detectors
+        self.whale_detector = PriceChangeDetector(window_seconds=60, threshold_percent=1.0)
+        self.level_detector = LevelCrossDetector(levels=[
+            68000, 69000, 70000,  # BTC Levels
+            95000, 96000, 97000,  # Just in case
+            98000, 99000, 100000 
+        ])
         self.running = False
         
         # Cooldown tracker: {symbol_type: last_trigger_time}
@@ -77,11 +86,14 @@ class MarketAnalyzer:
         """Process a single trade event."""
         self.trades_processed += 1
         
-        # Update indicators
-        rsi_result = self.rsi.update(trade.symbol, trade.price)
-        volume_result = self.volume.update(trade.symbol, trade.volume)
+        # Update indicators with timestamp for time-based aggregation
+        # These return results only when a 1-second candle completes
+        rsi_result = self.rsi.update(trade.symbol, trade.price, trade.time)
+        volume_result = self.volume.update(trade.symbol, trade.volume, trade.time)
+        whale_result = self.whale_detector.update(trade.symbol, trade.price, trade.time)
+        level_result = self.level_detector.update(trade.symbol, trade.price)
         
-        # Check triggers
+        # Check triggers (only fires when 1-second candles complete)
         if rsi_result:
             if rsi_result.is_overbought:
                 await self._maybe_trigger(
@@ -94,10 +106,25 @@ class MarketAnalyzer:
                     f"{trade.symbol} RSI dropped to {rsi_result.rsi} - oversold territory!"
                 )
                 
-        if volume_result.is_spike:
+        if volume_result and volume_result.is_spike:
             await self._maybe_trigger(
                 trade, "VOLUME_SPIKE", volume_result.spike_multiplier,
                 f"{trade.symbol} volume spike {volume_result.spike_multiplier}x!"
+            )
+            
+        # Check Whale Alert
+        if whale_result and whale_result.is_whale_move:
+            direction = "surged" if whale_result.change_percent > 0 else "dumped"
+            await self._maybe_trigger(
+                trade, "WHALE_ALERT", whale_result.change_percent,
+                f"{trade.symbol} {direction} {whale_result.change_percent}% in {whale_result.time_window_sec}s!"
+            )
+            
+        # Check Psychological Level
+        if level_result:
+            await self._maybe_trigger(
+                trade, "PSYCH_LEVEL", float(level_result.level),
+                f"{trade.symbol} crossed ${level_result.level} {level_result.direction}!"
             )
             
     async def _maybe_trigger(
@@ -157,7 +184,7 @@ class MarketAnalyzer:
             
             try:
                 response = self.ai_client.models.generate_content(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.0-flash",
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.7,

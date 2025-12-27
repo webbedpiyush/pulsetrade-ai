@@ -6,7 +6,7 @@ Connects to Binance public trade stream and produces events to Kafka.
 import asyncio
 import json
 import websockets
-from typing import List
+from typing import Callable, Awaitable
 from ddtrace import tracer
 
 from app.core.kafka import get_producer, TOPIC_CRYPTO_TRADES
@@ -31,6 +31,9 @@ class BinanceIngestor:
         self.producer = get_producer()
         self.running = False
         self.message_count = 0
+        
+        # Callback to broadcast trades to frontend
+        self.on_trade: Callable[[TradeEvent], Awaitable[None]] | None = None
         
     async def start(self):
         """Start the ingestor (runs forever)."""
@@ -76,6 +79,10 @@ class BinanceIngestor:
                 key=trade.symbol.encode(),
                 value=trade.to_kafka_bytes(),
             )
+        
+        # Broadcast to frontend (throttled - every 10th trade)
+        if self.on_trade and self.message_count % 10 == 0:
+            await self.on_trade(trade)
             
         self.message_count += 1
         

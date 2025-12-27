@@ -94,7 +94,7 @@ async def lifespan(app: FastAPI):
     
     async def on_analysis(symbol: str, text: str):
         """Generate voice and broadcast."""
-        # Broadcast text
+        # Broadcast text first
         await manager.broadcast_json({
             "type": "analysis",
             "data": {
@@ -104,19 +104,28 @@ async def lifespan(app: FastAPI):
             }
         })
         
-        # Generate and broadcast audio
+        # Generate and broadcast audio (voice.speak returns the audio bytes)
         audio = await voice.speak(text)
         if audio:
             await manager.broadcast_bytes(audio)
     
-    async def on_audio(audio: bytes):
-        """Broadcast audio chunk."""
-        await manager.broadcast_bytes(audio)
+    async def on_trade(trade):
+        """Broadcast trade to frontend."""
+        await manager.broadcast_json({
+            "type": "trade",
+            "data": {
+                "symbol": trade.symbol,
+                "price": trade.price,
+                "volume": trade.volume,
+                "time": trade.time,
+            }
+        })
     
-    # Set callbacks
+    # Set callbacks (NOTE: we don't set voice.on_audio_chunk since we broadcast
+    # audio directly in on_analysis after voice.speak() returns)
+    ingestor.on_trade = on_trade
     analyzer.on_alert = on_alert
     analyzer.on_analysis = on_analysis
-    voice.on_audio_chunk = on_audio
     
     # Start background tasks
     ingestor_task = asyncio.create_task(ingestor.start())

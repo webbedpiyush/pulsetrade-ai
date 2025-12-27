@@ -69,8 +69,10 @@ export class CryptoWebSocket {
             this.attemptReconnect();
         };
 
-        this.ws.onerror = (error) => {
-            console.error("[WS] Error:", error);
+        this.ws.onerror = () => {
+            // WebSocket error events don't contain useful info in browsers
+            // Connection issues will be handled by onclose with reconnection
+            console.log("[WS] Connection error, will reconnect...");
         };
     }
 

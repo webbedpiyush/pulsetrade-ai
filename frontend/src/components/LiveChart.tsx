@@ -72,17 +72,49 @@ export const LiveChart = memo(function LiveChart() {
         };
     }, []);
 
+    // Track last time to avoid duplicate timestamp errors
+    const lastTimeRef = useRef<number>(0);
+    // Track current symbol to detect changes
+    const currentSymbolRef = useRef<string>(selectedSymbol);
+
+    // Reset chart when symbol changes
+    useEffect(() => {
+        if (currentSymbolRef.current !== selectedSymbol) {
+            // Symbol changed - reset everything
+            currentSymbolRef.current = selectedSymbol;
+            lastTimeRef.current = 0;
+
+            // Clear existing chart data
+            if (seriesRef.current) {
+                seriesRef.current.setData([]);
+            }
+        }
+    }, [selectedSymbol]);
+
     // Update chart with new trades
     useEffect(() => {
         const trade = trades[selectedSymbol];
         if (!trade || !seriesRef.current) return;
 
-        const time = Math.floor(trade.time / 1000) as Time;
+        const timeInSeconds = Math.floor(trade.time / 1000);
 
-        seriesRef.current.update({
-            time,
-            value: trade.price,
-        });
+        // Lightweight Charts requires strictly increasing timestamps
+        // Skip updates with same or older timestamps
+        if (timeInSeconds <= lastTimeRef.current) {
+            return;
+        }
+
+        lastTimeRef.current = timeInSeconds;
+
+        try {
+            seriesRef.current.update({
+                time: timeInSeconds as Time,
+                value: trade.price,
+            });
+        } catch (e) {
+            // Ignore chart update errors (e.g., out-of-order data)
+            console.debug("[Chart] Update skipped:", e);
+        }
     }, [trades, selectedSymbol]);
 
     return (

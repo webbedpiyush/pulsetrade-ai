@@ -4,8 +4,12 @@ Kafka configuration for Confluent Cloud.
 Handles producer/consumer setup with SASL/SSL authentication.
 """
 import os
+from dotenv import load_dotenv
 from confluent_kafka import Producer, Consumer
 from functools import lru_cache
+
+# Load .env file
+load_dotenv()
 
 
 def get_kafka_config() -> dict:
