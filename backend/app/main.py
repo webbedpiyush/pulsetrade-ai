@@ -4,6 +4,7 @@ PulseTrade AI: Crypto Edition - FastAPI Backend
 Real-time crypto streaming with Binance, Kafka, Gemini, and ElevenLabs.
 """
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from typing import List
 
@@ -11,6 +12,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.ingestor import get_ingestor
+from app.services.analyzer import get_analyzer
+from app.services.voice import get_voice_service
+from app.models.trade import AlertEvent
 
 
 # =============================================================================
@@ -68,23 +72,70 @@ async def lifespan(app: FastAPI):
     """Start background workers on startup."""
     print("[Startup] Starting PulseTrade AI: Crypto Edition")
     
-    # Start Binance Ingestor
+    # Get services
     ingestor = get_ingestor()
-    ingestor_task = asyncio.create_task(ingestor.start())
+    analyzer = get_analyzer()
+    voice = get_voice_service()
     
-    # TODO: Start Analyzer (Phase 2)
-    # TODO: Start Voice Service (Phase 3)
+    # Wire up callbacks
+    async def on_alert(alert: AlertEvent):
+        """Broadcast alert to frontend."""
+        await manager.broadcast_json({
+            "type": "alert",
+            "data": {
+                "symbol": alert.symbol,
+                "price": alert.price,
+                "triggerType": alert.trigger_type,
+                "triggerValue": alert.trigger_value,
+                "message": alert.message,
+                "time": alert.time,
+            }
+        })
+    
+    async def on_analysis(symbol: str, text: str):
+        """Generate voice and broadcast."""
+        # Broadcast text
+        await manager.broadcast_json({
+            "type": "analysis",
+            "data": {
+                "symbol": symbol,
+                "text": text,
+                "time": int(time.time() * 1000),
+            }
+        })
+        
+        # Generate and broadcast audio
+        audio = await voice.speak(text)
+        if audio:
+            await manager.broadcast_bytes(audio)
+    
+    async def on_audio(audio: bytes):
+        """Broadcast audio chunk."""
+        await manager.broadcast_bytes(audio)
+    
+    # Set callbacks
+    analyzer.on_alert = on_alert
+    analyzer.on_analysis = on_analysis
+    voice.on_audio_chunk = on_audio
+    
+    # Start background tasks
+    ingestor_task = asyncio.create_task(ingestor.start())
+    analyzer_task = asyncio.create_task(analyzer.start())
     
     yield
     
     # Shutdown
     print("[Shutdown] Stopping services...")
     ingestor.stop()
+    analyzer.stop()
     ingestor_task.cancel()
-    try:
-        await ingestor_task
-    except asyncio.CancelledError:
-        pass
+    analyzer_task.cancel()
+    
+    for task in [ingestor_task, analyzer_task]:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 # =============================================================================
@@ -122,11 +173,17 @@ async def root():
 async def health():
     """Health check with status."""
     ingestor = get_ingestor()
+    analyzer = get_analyzer()
     return {
         "status": "healthy",
         "ingestor": {
             "running": ingestor.running,
             "messages_processed": ingestor.message_count,
+        },
+        "analyzer": {
+            "running": analyzer.running,
+            "trades_processed": analyzer.trades_processed,
+            "alerts_triggered": analyzer.alerts_triggered,
         },
         "websocket_clients": len(manager.active_connections),
     }
@@ -136,10 +193,53 @@ async def health():
 async def debug_trigger():
     """
     Force trigger an alert for demo purposes.
-    Injects a fake $100k BTC event.
+    Injects a fake BTC pump event.
     """
-    # TODO: Implement in Phase 3
-    return {"status": "triggered", "message": "Demo alert triggered"}
+    analyzer = get_analyzer()
+    voice = get_voice_service()
+    
+    # Create fake alert
+    fake_alert = AlertEvent(
+        symbol="BTCUSDT",
+        price=100000.0,
+        trigger_type="PRICE_LEVEL",
+        trigger_value=100000.0,
+        message="Bitcoin just hit $100,000! Historic moment!",
+        time=int(time.time() * 1000),
+    )
+    
+    # Broadcast alert
+    await manager.broadcast_json({
+        "type": "alert",
+        "data": {
+            "symbol": fake_alert.symbol,
+            "price": fake_alert.price,
+            "triggerType": fake_alert.trigger_type,
+            "triggerValue": fake_alert.trigger_value,
+            "message": fake_alert.message,
+            "time": fake_alert.time,
+        }
+    })
+    
+    # Generate AI response
+    analysis_text = "Bitcoin just smashed through one hundred thousand dollars! This is absolutely massive - a historic psychological barrier broken. Is this the start of a new bull run or the ultimate trap? Stay alert!"
+    
+    # Broadcast analysis
+    await manager.broadcast_json({
+        "type": "analysis",
+        "data": {
+            "symbol": "BTCUSDT",
+            "text": analysis_text,
+            "time": int(time.time() * 1000),
+        }
+    })
+    
+    # Speak it
+    audio = await voice.speak(analysis_text)
+    if audio:
+        await manager.broadcast_bytes(audio)
+    
+    return {"status": "triggered", "message": fake_alert.message}
 
 
 @app.websocket("/ws")
@@ -156,5 +256,5 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 # =============================================================================
-# Run with: uvicorn app.main:app --reload
+# Run with: ddtrace-run uvicorn app.main:app --reload
 # =============================================================================
