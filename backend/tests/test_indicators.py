@@ -1,125 +1,119 @@
 """
-Tests for the IndicatorEngine.
-Validates SMA, volatility, and breakout detection.
+Tests for Technical Indicators: RSI and Volume Spike Detection.
 
-Run with: pytest tests/test_indicators.py -v
+Run with: pytest backend/tests/test_indicators.py -v
 """
 import pytest
-from app.processors.indicators import IndicatorEngine, TechnicalSnapshot
+import time
+from app.indicators.rsi import RSICalculator
+from app.indicators.volume import VolumeSpikeDetector
 
 
-class TestIndicatorEngine:
-    """Test suite for IndicatorEngine."""
+class TestRSICalculator:
+    """Test suite for RSICalculator."""
     
     def test_initialization(self):
-        """Test engine initializes with empty windows."""
-        engine = IndicatorEngine()
-        assert engine.get_symbol_count() == 0
+        """Test RSI calculator initializes correctly."""
+        rsi = RSICalculator(period=14)
+        assert rsi.period == 14
+        assert len(rsi.calculators) == 0
         
-    def test_single_tick(self):
-        """Test processing a single tick."""
-        engine = IndicatorEngine()
-        snapshot = engine.update("NSE:INFY", 1500.0, 10000)
+    def test_candle_formation(self):
+        """Test that updates are aggregated into 1-second candles."""
+        rsi = RSICalculator(period=14)
+        symbol = "BTCUSDT"
+        # Use a fixed timestamp at the start of a second (e.g., 1000000000000 ms)
+        now = 1000000000000
         
-        assert snapshot.symbol == "NSE:INFY"
-        assert snapshot.sma_5 == 1500.0
-        assert snapshot.vwap == 1500.0
-        assert snapshot.volatility == 0.0
-        assert snapshot.is_breakout is False
+        # Multiple updates in same second should update current candle
+        rsi.update(symbol, 50000.0, now)
+        rsi.update(symbol, 50100.0, now + 100)
+        result = rsi.update(symbol, 50200.0, now + 500)
         
-    def test_multiple_ticks_same_symbol(self):
-        """Test SMA calculation with multiple ticks."""
-        engine = IndicatorEngine()
+        # Should return None until candle is closed (by a new second)
+        assert result is None
         
-        # Add 35 ticks at price 100
-        for _ in range(35):
-            engine.update("NSE:TCS", 100.0, 1000)
-            
-        # SMA(30) should be close to 100
-        snapshot = engine.update("NSE:TCS", 100.0, 1000)
-        assert 99.0 <= snapshot.sma_5 <= 101.0
+        # New second update should close previous candle
+        next_sec = now + 1000
+        result = rsi.update(symbol, 50300.0, next_sec)
         
-    def test_breakout_detection_up(self):
-        """Test breakout detection for upward move."""
-        engine = IndicatorEngine()
+        # Now we should have 2 candles in the deque:
+        # 1. The closed candle from 'now' (50200.0)
+        # 2. The open candle for 'next_sec' (50300.0)
+        calc = rsi.calculators[symbol]
+        assert len(calc.closes) == 2
+        assert calc.closes[0] == 50200.0
+        assert calc.closes[1] == 50300.0
+
+    def test_rsi_calculation(self):
+        """Test RSI calculation logic."""
+        # Use small period for testing
+        rsi = RSICalculator(period=2)
+        symbol = "ETHUSDT"
+        now = 1000000000000
         
-        # Establish baseline at 100
-        for _ in range(50):
-            engine.update("NSE:RELIANCE", 100.0, 1000)
-            
-        # Spike to 120 (20% jump, should trigger breakout)
-        snapshot = engine.update("NSE:RELIANCE", 120.0, 2000)
+        # Feed prices that go up -> RSI should be 100
+        prices = [100.0, 110.0, 120.0, 130.0, 140.0] 
         
-        # With consistent prices, volatility is near 0
-        # A 20% jump should exceed 2 * volatility
-        assert snapshot.is_breakout is True
-        assert snapshot.breakout_direction == "UP"
+        last_result = None
+        for i, price in enumerate(prices):
+            # Advance time by 1.1s for each price to force candle closure
+            t = now + (i * 1100)
+            result = rsi.update(symbol, price, t)
+            if result:
+                last_result = result
+                
+        # With period 2, we need enough history for the calculation
+        assert last_result is not None
+        assert last_result.rsi > 90  # Should be high (overbought)
+        assert last_result.is_overbought is True
+
+    def test_rsi_down_trend(self):
+        """Test RSI dropping."""
+        rsi = RSICalculator(period=2)
+        symbol = "SOLUSDT"
+        now = 1000000000000
         
-    def test_breakout_detection_down(self):
-        """Test breakout detection for downward move."""
-        engine = IndicatorEngine()
+        prices = [100.0, 90.0, 80.0, 70.0, 60.0]
         
-        # Establish baseline at 100
-        for _ in range(50):
-            engine.update("NSE:HDFC", 100.0, 1000)
-            
-        # Drop to 80 (20% drop, should trigger breakout)
-        snapshot = engine.update("NSE:HDFC", 80.0, 2000)
-        
-        assert snapshot.is_breakout is True
-        assert snapshot.breakout_direction == "DOWN"
-        
-    def test_no_breakout_normal_volatility(self):
-        """Test no false breakouts during normal volatility."""
-        engine = IndicatorEngine()
-        
-        # Add prices with some natural variance
-        import random
-        for _ in range(50):
-            price = 100.0 + random.uniform(-1, 1)  # ±1% variance
-            engine.update("NSE:ICICI", price, 1000)
-            
-        # Small move within normal range
-        snapshot = engine.update("NSE:ICICI", 100.5, 1000)
-        
-        # Should not trigger breakout for small moves
-        assert snapshot.is_breakout is False
-        
-    def test_multiple_symbols(self):
-        """Test tracking multiple symbols independently."""
-        engine = IndicatorEngine()
-        
-        engine.update("NSE:INFY", 1500.0, 1000)
-        engine.update("NSE:TCS", 3800.0, 2000)
-        engine.update("NYSE:AAPL", 190.0, 5000)
-        
-        assert engine.get_symbol_count() == 3
-        
-    def test_vwap_calculation(self):
-        """Test VWAP is volume-weighted."""
-        engine = IndicatorEngine()
-        
-        # Low price, high volume
-        engine.update("NSE:TEST", 100.0, 10000)
-        # High price, low volume
-        snapshot = engine.update("NSE:TEST", 200.0, 1000)
-        
-        # VWAP should be weighted toward 100 (higher volume)
-        # VWAP = (100*10000 + 200*1000) / (10000 + 1000) = 109.09
-        assert 108.0 <= snapshot.vwap <= 110.0
-        
-    def test_to_dict_serialization(self):
-        """Test snapshot serializes to JSON-safe dict."""
-        engine = IndicatorEngine()
-        snapshot = engine.update("NSE:INFY", 1500.0, 10000)
-        
-        data = snapshot.to_dict()
-        
-        assert isinstance(data, dict)
-        assert data["symbol"] == "NSE:INFY"
-        assert isinstance(data["sma_5"], float)
-        assert isinstance(data["is_breakout"], bool)
+        last_result = None
+        for i, price in enumerate(prices):
+            t = now + (i * 1100)
+            result = rsi.update(symbol, price, t)
+            if result:
+                last_result = result
+                
+        assert last_result is not None
+        assert last_result.rsi < 10  # Should be low (oversold)
+        assert last_result.is_oversold is True
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+class TestVolumeSpikeDetector:
+    """Test suite for VolumeSpikeDetector."""
+    
+    def test_spike_detection(self):
+        """Test volume spike logic."""
+        detector = VolumeSpikeDetector(window_size=10)
+        symbol = "BTCUSDT"
+        now = 1000000000000
+        
+        # Feed normal volume for 15 seconds
+        for i in range(15):
+            t = now + (i * 1000)
+            # Add tick, then add another tick in next second to close it
+            detector.update(symbol, 1.0, t)
+            
+        # Feed massive volume spike at t + 15s
+        spike_time = now + (15 * 1000)
+        detector.update(symbol, 10.0, spike_time)
+        
+        # To detect the spike, we need to complete the window holding the 10.0 volume
+        # So we send a tick at t + 16s
+        check_time = now + (16 * 1000)
+        result = detector.update(symbol, 1.0, check_time)
+        
+        # Now 'result' corresponds to the completed window from spike_time (volume 10.0)
+        assert result is not None
+        assert result.is_spike is True
+        assert result.spike_multiplier >= 5.0
+

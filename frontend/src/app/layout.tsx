@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,8 +19,8 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "PulseTrade AI | Real-time Market Intelligence",
-  description: "High-frequency multimodal trading assistant with real-time voice alerts",
+  title: "PulseTrade AI: Crypto Edition",
+  description: "Real-time crypto streaming with voice alerts powered by Binance, Kafka, Gemini, and ElevenLabs",
 };
 
 export default function RootLayout({
@@ -30,14 +29,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased`}
-        >
-          {children}
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased`}
+      >
+        {children}
+      </body>
+    </html>
   );
 }
