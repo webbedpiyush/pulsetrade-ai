@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useRef, memo } from "react";
-import { createChart, IChartApi, ISeriesApi, CandlestickData, Time } from "lightweight-charts";
+import { createChart, IChartApi, ISeriesApi, LineSeries, LineData, Time } from "lightweight-charts";
 import { useCryptoStore } from "@/stores/cryptoStore";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
- * Real-time candlestick chart using TradingView Lightweight Charts.
+ * Real-time line chart using TradingView Lightweight Charts v4.
  * Uses refs for updates to avoid React re-renders.
  */
 export const LiveChart = memo(function LiveChart() {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
-    const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+    const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
     const { selectedSymbol, trades } = useCryptoStore();
 
@@ -40,21 +39,20 @@ export const LiveChart = memo(function LiveChart() {
                 borderColor: "#1e293b",
             },
             crosshair: {
-                mode: 1, // Magnet mode
+                mode: 1,
             },
         });
 
-        const candlestickSeries = chart.addCandlestickSeries({
-            upColor: "#10b981",
-            downColor: "#ef4444",
-            borderUpColor: "#10b981",
-            borderDownColor: "#ef4444",
-            wickUpColor: "#10b981",
-            wickDownColor: "#ef4444",
+        // v4 API: use addSeries with LineSeries
+        const lineSeries = chart.addSeries(LineSeries, {
+            color: "#10b981",
+            lineWidth: 2,
+            crosshairMarkerVisible: true,
+            crosshairMarkerRadius: 4,
         });
 
         chartRef.current = chart;
-        seriesRef.current = candlestickSeries;
+        seriesRef.current = lineSeries as ISeriesApi<"Line">;
 
         // Handle resize
         const handleResize = () => {
@@ -74,24 +72,17 @@ export const LiveChart = memo(function LiveChart() {
         };
     }, []);
 
-    // Update chart with new trades (using ref to avoid re-renders)
+    // Update chart with new trades
     useEffect(() => {
         const trade = trades[selectedSymbol];
         if (!trade || !seriesRef.current) return;
 
         const time = Math.floor(trade.time / 1000) as Time;
-        const price = trade.price;
 
-        // For demo, create candle from trade
-        const candle: CandlestickData = {
+        seriesRef.current.update({
             time,
-            open: price * 0.999,
-            high: price * 1.001,
-            low: price * 0.998,
-            close: price,
-        };
-
-        seriesRef.current.update(candle);
+            value: trade.price,
+        });
     }, [trades, selectedSymbol]);
 
     return (
