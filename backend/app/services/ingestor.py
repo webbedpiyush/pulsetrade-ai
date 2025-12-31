@@ -38,27 +38,31 @@ class BinanceIngestor:
     async def start(self):
         """Start the ingestor (runs forever)."""
         self.running = True
-        print(f"[Ingestor] Connecting to Binance: {BINANCE_WS_URL}")
+        print(f"[Ingestor] STARTING... Target: {BINANCE_WS_URL}")
         
         while self.running:
             try:
+                print(f"[Ingestor] Attempting connection...")
                 await self._connect_and_stream()
             except Exception as e:
-                print(f"[Ingestor] Connection error: {e}")
+                print(f"[Ingestor] CRITICAL Connection error: {e}")
                 if self.running:
                     print("[Ingestor] Reconnecting in 5s...")
                     await asyncio.sleep(5)
     
     async def _connect_and_stream(self):
         """Connect to Binance and stream trades."""
+        print("[Ingestor] Opening WebSocket connection...")
         async with websockets.connect(BINANCE_WS_URL) as ws:
-            print("[Ingestor] Connected to Binance WebSocket")
+            print("[Ingestor] SUCCESS: Connected to Binance WebSocket")
             
             while self.running:
                 try:
                     msg = await asyncio.wait_for(ws.recv(), timeout=30)
+                    # print(f"[Ingestor] Raw message received: {msg[:50]}...") # Optional debug
                     await self._process_message(msg)
                 except asyncio.TimeoutError:
+                    print("[Ingestor] Timeout - sending ping")
                     # Send ping to keep alive
                     await ws.ping()
                     
