@@ -26,31 +26,31 @@ export function KafkaLogs() {
     }, [logs]);
 
     // Demo: Generate fake logs for visual effect
-    useEffect(() => {
-        const interval = setInterval(() => {
-            const symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
-            const basePrices: Record<string, number> = {
-                BTCUSDT: 67540,
-                ETHUSDT: 3450,
-                SOLUSDT: 185,
-            };
-
-            const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-            const price = basePrices[symbol] * (1 + (Math.random() - 0.5) * 0.001);
-
-            setLogs((prev) => [
-                ...prev.slice(-50), // Keep last 50
-                {
-                    s: symbol,
-                    p: price,
-                    q: Math.random() * 0.1,
-                    T: Date.now(),
-                },
-            ]);
-        }, 100);
-
-        return () => clearInterval(interval);
-    }, []);
+    // useEffect(() => {
+    //     const interval = setInterval(() => {
+    //         const symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
+    //         const basePrices: Record<string, number> = {
+    //             BTCUSDT: 67540,
+    //             ETHUSDT: 3450,
+    //             SOLUSDT: 185,
+    //         };
+    //
+    //         const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+    //         const price = basePrices[symbol] * (1 + (Math.random() - 0.5) * 0.001);
+    //
+    //         setLogs((prev) => [
+    //             ...prev.slice(-50), // Keep last 50
+    //             {
+    //                 s: symbol,
+    //                 p: price,
+    //                 q: Math.random() * 0.1,
+    //                 T: Date.now(),
+    //             },
+    //         ]);
+    //     }, 100);
+    //
+    //     return () => clearInterval(interval);
+    // }, []);
 
     return (
         <div
