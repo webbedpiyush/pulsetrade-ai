@@ -9,6 +9,7 @@ interface CryptoStore {
 
     // Trade data (latest tick per symbol)
     trades: Record<string, TradeEvent>;
+    latestTrade: TradeEvent | null; // For log streaming
     updateTrade: (trade: TradeEvent) => void;
 
     // Alerts history
@@ -35,9 +36,11 @@ export const useCryptoStore = create<CryptoStore>((set) => ({
 
     // Trades
     trades: {},
+    latestTrade: null,
     updateTrade: (trade) =>
         set((state) => ({
             trades: { ...state.trades, [trade.symbol]: trade },
+            latestTrade: trade,
         })),
 
     // Alerts
