@@ -101,6 +101,16 @@ Visit **http://localhost:3000**
 
 ---
 
+## 🚀 Deployment
+
+We have a detailed deployment guide covering:
+*   **Railway (PaaS)**: For quick demos.
+*   **Docker on VPS**: For production with Datadog.
+
+👉 **[Read the Deployment Guide](DEPLOYMENT.md)**
+
+---
+
 ## Project Structure
 
 ```

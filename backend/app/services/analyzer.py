@@ -59,6 +59,10 @@ class MarketAnalyzer:
         
         self.trades_processed = 0
         self.alerts_triggered = 0
+        self.alerts_skipped = 0
+        
+        # Callback to check allowed connections (returns bool)
+        self.connection_check_callback = None
         
     async def start(self):
         """Start the analyzer (runs forever)."""
@@ -163,6 +167,15 @@ class MarketAnalyzer:
         if self.on_alert:
             await self.on_alert(alert)
             
+        # Check if we should run expensive AI (Smart Standby)
+        if self.connection_check_callback:
+            has_audience = self.connection_check_callback()
+            if not has_audience:
+                self.alerts_skipped += 1
+                if self.alerts_skipped % 10 == 0:  # Log every 10th skip to not spam
+                    print(f"[Analyzer] Skipping AI generation - No active clients (Total Skipped: {self.alerts_skipped})")
+                return
+
         # Generate AI analysis
         await self._generate_ai_analysis(alert)
         
