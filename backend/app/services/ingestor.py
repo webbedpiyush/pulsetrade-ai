@@ -16,8 +16,8 @@ from app.models.trade import TradeEvent
 # Tracked symbols
 TRACKED_SYMBOLS = ["btcusdt", "ethusdt", "solusdt"]
 
-# Binance WebSocket URL (combined stream)
-BINANCE_WS_URL = "wss://stream.binance.com:9443/ws/" + "/".join(
+# Binance WebSocket URL (Using Binance US to avoid HTTP 451 Geo-blocking on Railway)
+BINANCE_WS_URL = "wss://stream.binance.us:9443/ws/" + "/".join(
     f"{symbol}@trade" for symbol in TRACKED_SYMBOLS
 )
 
