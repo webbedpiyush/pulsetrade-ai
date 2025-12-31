@@ -80,9 +80,10 @@ class BinanceIngestor:
                 value=trade.to_kafka_bytes(),
             )
         
-        # Broadcast to frontend (throttled - every 10th trade)
-        if self.on_trade and self.message_count % 10 == 0:
-            await self.on_trade(trade)
+        # Broadcast to frontend (No throttling for debug)
+        if self.on_trade:
+             # print(f"[Debug] Ingestor dispatching {trade.symbol} {trade.price}")
+             await self.on_trade(trade)
             
         self.message_count += 1
         
