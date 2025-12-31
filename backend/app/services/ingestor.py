@@ -17,7 +17,8 @@ from app.models.trade import TradeEvent
 TRACKED_SYMBOLS = ["btcusdt", "ethusdt", "solusdt"]
 
 # Binance WebSocket URL (Using Binance US to avoid HTTP 451 Geo-blocking on Railway)
-BINANCE_WS_URL = "wss://stream.binance.us:9443/ws/" + "/".join(
+# Note: For combined streams on Binance US, we use /stream?streams=<stream1>/<stream2>
+BINANCE_WS_URL = "wss://stream.binance.us:9443/stream?streams=" + "/".join(
     f"{symbol}@trade" for symbol in TRACKED_SYMBOLS
 )
 
@@ -68,7 +69,13 @@ class BinanceIngestor:
                     
     async def _process_message(self, msg: str):
         """Process a Binance trade message."""
-        data = json.loads(msg)
+        payload = json.loads(msg)
+        
+        # Handle combined stream format {"stream": "...", "data": {...}}
+        if "data" in payload:
+            data = payload["data"]
+        else:
+            data = payload
         
         # Parse to our model
         trade = TradeEvent.from_binance(data)
