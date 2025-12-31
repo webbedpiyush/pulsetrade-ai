@@ -127,6 +127,9 @@ async def lifespan(app: FastAPI):
     analyzer.on_alert = on_alert
     analyzer.on_analysis = on_analysis
     
+    # Save money: Only run AI if someone is listening
+    analyzer.connection_check_callback = lambda: len(manager.active_connections) > 0
+    
     # Start background tasks
     ingestor_task = asyncio.create_task(ingestor.start())
     analyzer_task = asyncio.create_task(analyzer.start())
