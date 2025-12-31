@@ -259,10 +259,18 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time data."""
     await manager.connect(websocket)
     try:
+    await manager.connect(websocket)
+    try:
         while True:
-            # Keep connection alive, receive any client messages
-            data = await websocket.receive_text()
-            # Handle ping/pong or client commands if needed
+            # Wait for messages with a timeout to send heartbeats
+            try:
+                # Wait 10 seconds for a message
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=10)
+                # Handle client messages if needed
+            except asyncio.TimeoutError:
+                # No data from client? Send a "ping" to keep connection alive
+                # (The client doesn't strictly need to respond if it's just a keep-alive)
+                pass
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
