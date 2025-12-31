@@ -12,5 +12,8 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
+# Force unbuffered logging (Critical for Railway logs)
+ENV PYTHONUNBUFFERED=1
+
 # Run with Datadog tracing
 CMD ["ddtrace-run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
